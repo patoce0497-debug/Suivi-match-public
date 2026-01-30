@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>RCS Verlaine - Suivi</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0">
+    <style>
+        body { font-family: sans-serif; padding: 10px; background: #f4f7f6; margin: 0; overscroll-behavior-y: contain; }
+        .header-club { text-align: center; padding: 15px 0; background: #2d6a4f; color: white; border-radius: 0 0 15px 15px; margin: -10px -10px 15px -10px; }
+        h2 { margin: 0; font-size: 20px; }
+        #globalTimer { font-size: 28px; font-weight: bold; margin: 15px 0; text-align: center; color: #2d6a4f; }
+        button { cursor: pointer; border-radius: 8px; border: none; font-weight: bold; touch-action: manipulation; }
+        .main-btn { width: 100%; padding: 15px; background: #2d6a4f; color: white; margin-bottom: 10px; font-size: 18px; }
+        .score-container { display: flex; gap: 10px; margin-bottom: 15px; }
+        .scoreBox { flex: 1; background: #d4edda; padding: 15px; border-radius: 12px; text-align: center; font-size: 22px; font-weight: bold; }
+        .concededBox { flex: 1; background: #f8d7da; padding: 15px; border-radius: 12px; text-align: center; }
+        .player { background: white; margin-bottom: 12px; padding: 15px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
+        .row { display: flex; justify-content: space-between; align-items: center; font-size: 18px; margin-bottom: 10px; }
+        .action-row { display: flex; gap: 8px; margin-bottom: 10px; }
+        .btn-toggle { flex: 3; padding: 12px; color: white; font-size: 16px; }
+        .btn-replace { flex: 1; background: #6c757d; color: white; font-size: 20px; }
+        .statrow { display: flex; gap: 10px; margin-top: 10px; }
+        .statbox { flex: 1; background: #f8f9fa; padding: 8px; border-radius: 8px; display: flex; align-items: center; justify-content: space-between; border: 1px solid #eee; }
+        .smallbtn { padding: 8px 12px; font-size: 18px; background: #ddd; }
+        .goalcompare { background: #e7f3ff; padding: 8px; border-radius: 8px; margin-top: 10px; text-align: center; font-size: 14px; color: #0056b3; font-weight: bold; }
+        
+        /* Modal Remplacement */
+        .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 1000; justify-content: center; align-items: center; }
+        .modal-content { background: white; padding: 20px; border-radius: 15px; width: 85%; max-height: 80%; overflow-y: auto; }
+        .replace-option { width: 100%; padding: 15px; margin-bottom: 8px; text-align: left; background: #f8f9fa; border: 1px solid #ddd; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+<div class="header-club">
+    <h2>RCS VERLAINE</h2>
+</div>
+
+<div id="globalTimer">Temps : 0:00</div>
+<button id="globalBtn" class="main-btn">Demarrer le match</button>
+
+<div class="score-container">
+    <div class="scoreBox">Score : <span id="scoreGoals">0</span></div>
+    <div class="concededBox">
+        Recus : <span id="conceded">0</span><br>
+        <button id="minusC" class="smallbtn" style="margin-top:5px">-</button>
+        <button id="plusC" class="smallbtn" style="margin-top:5px">+</button>
+    </div>
+</div>
+
+<div id="players"></div>
+
+<button id="exportBtn" class="main-btn" style="background:#17a2b8;">Exporter CSV</button>
+<button onclick="if(confirm('Effacer tout ?')){localStorage.clear();location.reload();}" style="width:100%; background:none; color:red; font-size:12px; margin-top:10px;">Reinitialiser le match</button>
+
+<div id="replaceModal" class="modal-overlay">
+    <div class="modal-content">
+        <h3 style="margin-top:0">Qui remplace <span id="outPlayerName" style="color:#2d6a4f"></span> ?</h3>
+        <div id="subOptions"></div>
+        <button onclick="closeModal()" style="width:100%; padding:12px; margin-top:10px; background:#6c757d; color:white;">Annuler</button>
+    </div>
+</div>
+
+<script>
+const names = ["Alexis 7","Flo 6","Giacomo 13","Justin 9","Leni 10","Luka 2","Mattia 5","Mathys 4","Nolan 12","Theo 8"];
+let data = {}, globalRunning = false, globalStart = 0, globalTotal = 0, goalsScored = 0, conceded = 0;
+
+function save() {
+    localStorage.setItem('verlaine_v_modal', JSON.stringify({ data, globalRunning, globalStart, globalTotal, goalsScored, conceded }));
+}
+
+function init() {
+    const saved = localStorage.getItem('verlaine_v_modal');
+    if (saved) {
+        const p = JSON.parse(saved);
+        data = p.data; globalRunning = p.globalRunning; globalStart = p.globalStart;
+        globalTotal = p.globalTotal; goalsScored = p.goalsScored; conceded = p.conceded;
+        if(globalRunning) document.getElementById("globalBtn").textContent = "Arreter le match";
+    } else {
+        names.forEach(n => data[n] = {playing:false, lastStart:0, total:0, goals:0, assists:0});
+    }
+}
+
+function fmt(sec){
+    const m = Math.floor(sec/60);
+    const s = sec % 60;
+    return m + ":" + (s < 10 ? "0" : "") + s;
+}
+
+function render(){
+    const div = document.getElementById("players");
+    div.innerHTML = "";
+    const now = Math.floor(Date.now()/1000);
+    document.getElementById("scoreGoals").textContent = goalsScored;
+    document.getElementById("conceded").textContent = conceded;
+
+    names.forEach(n => {
+        const p = data[n];
+        const t = p.total + (p.playing ? now - p.lastStart : 0);
+        const diff = p.goals - conceded;
+        const card = document.createElement("div");
+        card.className = "player";
+        card.innerHTML = `
+            <div class="row"><b>${n}</b><span id="t_${n}" style="font-family:monospace; font-weight:bold;">${fmt(t)}</span></div>
+            <div class="action-row">
+                <button class="btn-toggle" onclick="toggleP('${n}')" style="background:${p.playing?'#ffc107':'#2d6a4f'}">
+                    ${p.playing ? "Sortir" : "Entrer"}
+                </button>
+                ${p.playing ? `<button class="btn-replace" onclick="openReplace('${n}')">🔄</button>` : ''}
+            </div>
+            <div class="statrow">
+                <div class="statbox">⚽ ${p.goals} <div>
+                    <button class="smallbtn" onclick="addGoal('${n}',1)">+</button>
+                    <button class="smallbtn" onclick="addGoal('${n}',-1)">-</button>
+                </div></div>
+                <div class="statbox">👟 ${p.assists} <div>
+                    <button class="smallbtn" onclick="addAssist('${n}',1)">+</button>
+                    <button class="smallbtn" onclick="addAssist('${n}',-1)">-</button>
+                </div></div>
+            </div>
+            <div class="goalcompare">Difference individuelle : ${diff > 0 ? '+'+diff : diff}</div>
+        `;
+        div.appendChild(card);
+    });
+}
+
+function toggleP(n) {
+    const now = Math.floor(Date.now()/1000);
+    if (data[n].playing) { data[n].total += now - data[n].lastStart; data[n].playing = false; }
+    else { data[n].lastStart = now; data[n].playing = true; }
+    save(); render();
+}
+
+function addGoal(n, v) { 
+    if(v < 0 && data[n].goals <= 0) return;
+    data[n].goals += v; goalsScored += v; save(); render(); 
+}
+
+function addAssist(n, v) { 
+    data[n].assists = Math.max(0, data[n].assists + v); save(); render(); 
+}
+
+function openReplace(nameOut) {
+    document.getElementById("outPlayerName").textContent = nameOut;
+    const subOptions = document.getElementById("subOptions");
+    subOptions.innerHTML = "";
+    names.forEach(n => {
+        if (!data[n].playing) {
+            const btn = document.createElement("button");
+            btn.className = "replace-option";
+            btn.textContent = "Entree de " + n;
+            btn.onclick = () => {
+                const now = Math.floor(Date.now()/1000);
+                data[nameOut].total += now - data[nameOut].lastStart;
+                data[nameOut].playing = false;
+                data[n].lastStart = now;
+                data[n].playing = true;
+                closeModal(); save(); render();
+            };
+            subOptions.appendChild(btn);
+        }
+    });
+    document.getElementById("replaceModal").style.display = "flex";
+}
+
+function closeModal() { document.getElementById("replaceModal").style.display = "none"; }
+
+document.getElementById("globalBtn").onclick = () => {
+    const now = Math.floor(Date.now()/1000);
+    if (!globalRunning) {
+        globalRunning = true; globalStart = now;
+        document.getElementById("globalBtn").textContent = "Arreter le match";
+        names.forEach(n => { if(!data[n].playing){ data[n].playing = true; data[n].lastStart = now; }});
+    } else {
+        globalRunning = false; globalTotal += now - globalStart;
+        document.getElementById("globalBtn").textContent = "Demarrer le match";
+        names.forEach(n => { if(data[n].playing){ data[n].total += now - data[n].lastStart; data[n].playing = false; }});
+    }
+    save(); render();
+};
+
+document.getElementById("plusC").onclick = () => { conceded++; save(); render(); };
+document.getElementById("minusC").onclick = () => { conceded = Math.max(0, conceded - 1); save(); render(); };
+
+setInterval(() => {
+    const now = Math.floor(Date.now()/1000);
+    names.forEach(n => {
+        const p = data[n];
+        if (p.playing) {
+            const el = document.getElementById("t_"+n);
+            if (el) el.textContent = fmt(p.total + (now - p.lastStart));
+        }
+    });
+    const g = globalTotal + (globalRunning ? now - globalStart : 0);
+    document.getElementById("globalTimer").textContent = "Temps : " + fmt(g);
+}, 1000);
+
+document.getElementById("exportBtn").onclick = () => {
+    let csv = "Nom,Secondes,Temps,Buts,Assists\n";
+    names.forEach(n => {
+        const t = data[n].total + (data[n].playing ? Math.floor(Date.now()/1000) - data[n].lastStart : 0);
+        csv += `${n},${t},${fmt(t)},${data[n].goals},${data[n].assists}\n`;
+    });
+    const blob = new Blob([csv], {type: "text/csv"});
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `match_verlaine.csv`;
+    a.click();
+};
+
+init();
+render();
+</script>
+</body>
+</html>

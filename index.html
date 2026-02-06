@@ -14,7 +14,7 @@
         .score-container { display: flex; gap: 10px; margin-bottom: 15px; }
         .scoreBox { flex: 1; background: #d4edda; padding: 15px; border-radius: 12px; text-align: center; font-size: 22px; font-weight: bold; }
         .concededBox { flex: 1; background: #f8d7da; padding: 15px; border-radius: 12px; text-align: center; }
-        .player { background: white; margin-bottom: 12px; padding: 15px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
+        .player { background: white; margin-bottom: 12px; padding: 15px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); transition: all 0.3s ease; }
         .row { display: flex; justify-content: space-between; align-items: center; font-size: 18px; margin-bottom: 10px; }
         .action-row { display: flex; gap: 8px; margin-bottom: 10px; }
         .btn-toggle { flex: 3; padding: 12px; color: white; font-size: 16px; }
@@ -30,14 +30,7 @@
         .replace-option { width: 100%; padding: 15px; margin-bottom: 8px; text-align: left; background: #f8f9fa; border: 1px solid #ddd; font-weight: bold; }
     </style>
 </head>
-<link rel="manifest" href="manifest.json">
-<meta name="theme-color" content="#2d6a4f">
 <body>
-<script>
-if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.register("service-worker.js");
-}
-</script>
 
 <div class="header-club">
     <h2>RCS VERLAINE</h2>
@@ -69,6 +62,20 @@ if ("serviceWorker" in navigator) {
 </div>
 
 <script>
+// Enregistrement du Service Worker avec gestion du cache v2
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("service-worker.js").then(reg => {
+      reg.onupdatefound = () => {
+          const installingWorker = reg.installing;
+          installingWorker.onstatechange = () => {
+              if (installingWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                  location.reload(); 
+              }
+          };
+      };
+  });
+}
+
 const names = ["Alexis 7","Flo 6","Giacomo 13","Leni 10","Luka 2","Mateo 11","Mathys 4","Nolan 12","Theo 8"];
 let data = {}, globalRunning = false, globalStart = 0, globalTotal = 0, goalsScored = 0, conceded = 0;
 
@@ -101,7 +108,14 @@ function render(){
     document.getElementById("scoreGoals").textContent = goalsScored;
     document.getElementById("conceded").textContent = conceded;
 
-    names.forEach(n => {
+    // TRI DES JOUEURS : On crée une liste triée basée sur le temps total actuel
+    const sortedNames = [...names].sort((a, b) => {
+        const timeA = data[a].total + (data[a].playing ? now - data[a].lastStart : 0);
+        const timeB = data[b].total + (data[b].playing ? now - data[b].lastStart : 0);
+        return timeB - timeA; // Du plus grand au plus petit
+    });
+
+    sortedNames.forEach(n => {
         const p = data[n];
         const t = p.total + (p.playing ? now - p.lastStart : 0);
         const diff = p.goals - conceded;
@@ -189,15 +203,12 @@ document.getElementById("globalBtn").onclick = () => {
 document.getElementById("plusC").onclick = () => { conceded++; save(); render(); };
 document.getElementById("minusC").onclick = () => { conceded = Math.max(0, conceded - 1); save(); render(); };
 
+// INTERVALLE : Mise à jour de l'affichage complet (incluant le tri) chaque seconde
 setInterval(() => {
+    if (globalRunning) {
+        render(); // Force le re-tri et le rendu si le match est en cours
+    }
     const now = Math.floor(Date.now()/1000);
-    names.forEach(n => {
-        const p = data[n];
-        if (p.playing) {
-            const el = document.getElementById("t_"+n);
-            if (el) el.textContent = fmt(p.total + (now - p.lastStart));
-        }
-    });
     const g = globalTotal + (globalRunning ? now - globalStart : 0);
     document.getElementById("globalTimer").textContent = "Temps : " + fmt(g);
 }, 1000);

@@ -17,6 +17,7 @@ function init() {
             globalTotal = p.globalTotal || 0; 
             goalsScored = p.goalsScored || 0; 
             conceded = p.conceded || 0;
+            
             if(globalRunning) {
                 document.getElementById("globalBtn").textContent = "Arreter le match";
                 startTimerLoop();
@@ -26,6 +27,7 @@ function init() {
         }
     }
     
+    // Initialisation sécurisée des joueurs s'ils n'existent pas dans le stockage
     names.forEach(n => {
         if (!data[n]) {
             data[n] = {playing:false, lastStart:0, total:0, goals:0, assists:0};
@@ -47,17 +49,18 @@ function render(){
     document.getElementById("scoreGoals").textContent = goalsScored;
     document.getElementById("conceded").textContent = conceded;
 
+    // RÈGLE 2 : Tri en temps réel du plus grand temps de jeu au plus petit
     const sortedNames = [...names].sort((a, b) => {
-        const timeA = (data[a]?.total || 0) + (data[a]?.playing ? now - data[a].lastStart : 0);
-        const timeB = (data[b]?.total || 0) + (data[b]?.playing ? now - data[b].lastStart : 0);
+        const timeA = (data[a]?.total || 0) + (data[a]?.playing && globalRunning ? now - data[a].lastStart : 0);
+        const timeB = (data[b]?.total || 0) + (data[b]?.playing && globalRunning ? now - data[b].lastStart : 0);
         return timeB - timeA;
     });
 
     sortedNames.forEach(n => {
         const p = data[n];
         if (!p) return;
-        const t = p.total + (p.playing ? now - p.lastStart : 0);
-        const diff = p.goals - conceded;
+        // RÈGLE 1 & 3 : Calcul du temps dynamique prenant en compte si le match est en cours
+        const t = p.total + (p.playing && globalRunning ? now - p.lastStart : 0);
         const card = document.createElement("div");
         card.className = "player";
         card.innerHTML = `
@@ -78,8 +81,7 @@ function render(){
                     <button class="smallbtn" onclick="addAssist('${n}',-1)">-</button>
                 </div></div>
             </div>
-            <div class="goalcompare">Difference individuelle : ${diff > 0 ? '+'+diff : diff}</div>
-        `;
+        `; // AMÉLIORATION : Différence individuelle supprimée d'ici
         div.appendChild(card);
     });
 }
@@ -87,7 +89,10 @@ function render(){
 function toggleP(n) {
     const now = Math.floor(Date.now()/1000);
     if (data[n].playing) { 
-        data[n].total += now - data[n].lastStart; 
+        // Si le match tourne, on accumule le temps immédiatement
+        if (globalRunning) {
+            data[n].total += now - data[n].lastStart;
+        }
         data[n].playing = false; 
     } else { 
         data[n].lastStart = now; 
@@ -106,36 +111,53 @@ function addAssist(n, v) {
     data[n].assists += v; save(); render(); 
 }
 
+// RÈGLE 1 & 2 : Boucle de rafraîchissement qui met à jour les chronos ET réorganise le classement en direct
 function startTimerLoop() {
     if(timerInterval) clearInterval(timerInterval);
     timerInterval = setInterval(() => {
         const now = Math.floor(Date.now()/1000);
         const totalSec = globalTotal + (globalRunning ? now - globalStart : 0);
         document.getElementById("globalTimer").textContent = "Temps : " + fmt(totalSec);
-        names.forEach(n => {
-            if(data[n] && data[n].playing) {
-                const t = data[n].total + (now - data[n].lastStart);
-                const el = document.getElementById(`t_${n}`);
-                if(el) el.textContent = fmt(t);
-            }
-        });
+        
+        // On relance le render à chaque seconde pour appliquer le tri automatique en direct pendant que le temps s'écoule
+        render();
     }, 1000);
 }
 
 document.getElementById("globalBtn").onclick = function() {
     const now = Math.floor(Date.now()/1000);
     if(!globalRunning) {
+        // AMÉLIORATION COMPOSITION : Si aucun joueur n'est actif sur le terrain au moment de démarrer
+        const activePlayersCount = names.filter(n => data[n].playing).length;
+        if (activePlayersCount === 0) {
+            if (confirm("Aucun joueur n'est sur le terrain. Voulez-vous faire entrer automatiquement les 10 premiers joueurs ?")) {
+                for (let i = 0; i < 10; i++) {
+                    if (names[i]) data[names[i]].playing = true;
+                }
+            }
+        }
+
         globalStart = now;
         globalRunning = true;
         this.textContent = "Arreter le match";
-        names.forEach(n => { if(data[n] && data[n].playing) data[n].lastStart = now; });
+        
+        // RÈGLE 1 : Tous les joueurs cochés comme "playing" voient leur chrono démarrer synchronisé sur le bouton général
+        names.forEach(n => { if(data[n].playing) data[n].lastStart = now; });
         startTimerLoop();
     } else {
         globalTotal += now - globalStart;
         globalRunning = false;
         this.textContent = "Demarrer le match";
         clearInterval(timerInterval);
-        names.forEach(n => { if(data[n] && data[n].playing) { data[n].total += now - data[n].lastStart; data[n].playing = false; } });
+        
+        // Quand le match s'arrête, on fige et enregistre le temps accumulé de ceux qui jouaient
+        names.forEach(n => { 
+            if(data[n].playing) { 
+                data[n].total += now - data[n].lastStart; 
+                // Optionnel : décommente la ligne suivante si tu veux qu'ils sortent tous automatiquement à la pause
+                // data[n].playing = false; 
+            } 
+        });
     }
     save(); render();
 };
@@ -165,19 +187,25 @@ function closeModal() { document.getElementById("replaceModal").style.display = 
 
 function executeReplace(inPlayer) {
     const now = Math.floor(Date.now()/1000);
-    data[activeReplacePlayer].total += now - data[activeReplacePlayer].lastStart;
+    
+    // Si le match est en cours, on calcule le temps exact du sortant immédiatement
+    if (globalRunning) {
+        data[activeReplacePlayer].total += now - data[activeReplacePlayer].lastStart;
+        data[inPlayer].lastStart = now;
+    }
+    
     data[activeReplacePlayer].playing = false;
-    data[inPlayer].lastStart = now;
     data[inPlayer].playing = true;
+    
     closeModal(); save(); render();
 }
 
 document.getElementById("exportBtn").onclick = function() {
-    let csv = "Joueur,Temps de jeu (sec),Buts,Assists,Diff Individuelle\n";
+    let csv = "Joueur,Temps de jeu (sec),Buts,Assists\n";
     names.forEach(n => {
         const now = Math.floor(Date.now()/1000);
-        const t = data[n].total + (data[n].playing ? now - data[n].lastStart : 0);
-        csv += `${n},${t},${data[n].goals},${data[n].assists},${data[n].goals - conceded}\n`;
+        const t = data[n].total + (data[n].playing && globalRunning ? now - data[n].lastStart : 0);
+        csv += `${n},${t},${data[n].goals},${data[n].assists}\n`;
     });
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement("a");
@@ -188,5 +216,6 @@ document.getElementById("exportBtn").onclick = function() {
     document.body.removeChild(link);
 };
 
+// Lancement au démarrage de la page
 init();
 render();

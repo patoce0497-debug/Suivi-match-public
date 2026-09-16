@@ -2,7 +2,7 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <title>RCS Verlaine - Suivi</title>
+    <title>RCS Sart-Tilman - Suivi</title>
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0">
     <style>
         body { font-family: sans-serif; padding: 10px; background: #f4f7f6; margin: 0; overscroll-behavior-y: contain; }
@@ -33,7 +33,7 @@
 <body>
 
 <div class="header-club">
-    <h2>RCS VERLAINE</h2>
+    <h2>RCS SART-TILMAN</h2>
 </div>
 
 <div id="globalTimer">Temps : 0:00</div>
@@ -76,15 +76,15 @@ if ("serviceWorker" in navigator) {
   });
 }
 
-const names = ["Alexis 7","Florent 6","Mattia 5","Mateo 11","Leni 10","Nolan 12","Theo 8"];
+const names = ["Aurélien","Aymeric","Djibril","Matteo","Giacomo","Jules","Theo 8","Julian","Loris","Louis","Lyam","Maxime","Robin","Thomas","Tiago","Yanis","Youssef",Zinedine"];
 let data = {}, globalRunning = false, globalStart = 0, globalTotal = 0, goalsScored = 0, conceded = 0;
 
 function save() {
-    localStorage.setItem('verlaine_v_modal', JSON.stringify({ data, globalRunning, globalStart, globalTotal, goalsScored, conceded }));
+    localStorage.setItem('sarttilman_v_modal', JSON.stringify({ data, globalRunning, globalStart, globalTotal, goalsScored, conceded }));
 }
 
 function init() {
-    const saved = localStorage.getItem('verlaine_v_modal');
+    const saved = localStorage.getItem('sarttilman_v_modal');
     if (saved) {
         const p = JSON.parse(saved);
         data = p.data; globalRunning = p.globalRunning; globalStart = p.globalStart;
@@ -222,7 +222,7 @@ document.getElementById("exportBtn").onclick = () => {
     const blob = new Blob([csv], {type: "text/csv"});
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
-    a.download = `match_verlaine.csv`;
+    a.download = `match_sarttilman.csv`;
     a.click();
 };
 

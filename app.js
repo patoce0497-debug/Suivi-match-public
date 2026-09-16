@@ -1,5 +1,5 @@
 // Liste de base fixe (GitHub)
-const initialNames = ["Aurélien","Aymeric","Djibril","Matteo","Giacomo","Jules","Theo 8","Julian","Loris","Louis","Lyam","Maxime","Robin","Thomas","Tiago","Yanis","Youssef","Zinedine"];
+const initialNames = ["Aurelien","Aymeric","Djibril","Matteo","Giacomo","Jules","Theo","Julian","Loris","Louis","Lyam","Maxime","Robin","Thomas","Tiago","Yanis","Youssef","Zinedine"];
 // Tableau dynamique qui contiendra aussi les joueurs ajoutés sur le terrain
 let names = [...initialNames];
 

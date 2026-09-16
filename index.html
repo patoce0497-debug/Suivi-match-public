@@ -48,7 +48,14 @@
     </div>
 </div>
 
+<!-- Zone d'ajout rapide d'un joueur exceptionnel -->
+<div style="display: flex; gap: 10px; margin-bottom: 15px;">
+    <input type="text" id="newPlayerName" placeholder="Nom du joueur exceptionnel..." style="flex: 1; padding: 12px; border-radius: 8px; border: 1px solid #ccc; font-size: 16px;">
+    <button id="addPlayerBtn" style="padding: 12px 20px; background: #2d6a4f; color: white; font-size: 18px;">+</button>
+</div>
+
 <div id="players"></div>
+
 
 <button id="exportBtn" class="main-btn" style="background:#17a2b8;">Exporter CSV</button>
 <button onclick="if(confirm('Effacer tout ?')){localStorage.clear();location.reload();}" style="width:100%; background:none; color:red; font-size:12px; margin-top:10px;">Reinitialiser le match</button>

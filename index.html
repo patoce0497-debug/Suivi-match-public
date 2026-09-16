@@ -80,11 +80,11 @@ const names = ["Aurélien","Aymeric","Djibril","Matteo","Giacomo","Jules","Theo 
 let data = {}, globalRunning = false, globalStart = 0, globalTotal = 0, goalsScored = 0, conceded = 0;
 
 function save() {
-    localStorage.setItem('sarttilman_v_modal', JSON.stringify({ data, globalRunning, globalStart, globalTotal, goalsScored, conceded }));
+    localStorage.setItem('verlaine_v_modal', JSON.stringify({ data, globalRunning, globalStart, globalTotal, goalsScored, conceded }));
 }
 
 function init() {
-    const saved = localStorage.getItem('sarttilman_v_modal');
+    const saved = localStorage.getItem('verlaine_v_modal');
     if (saved) {
         const p = JSON.parse(saved);
         data = p.data; globalRunning = p.globalRunning; globalStart = p.globalStart;
@@ -222,7 +222,7 @@ document.getElementById("exportBtn").onclick = () => {
     const blob = new Blob([csv], {type: "text/csv"});
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
-    a.download = `match_sarttilman.csv`;
+    a.download = `match_verlaine.csv`;
     a.click();
 };
 

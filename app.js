@@ -219,13 +219,25 @@ function executeReplace(inPlayer) {
 }
 
 document.getElementById("exportBtn").onclick = function() {
-    let csv = "Joueur,Temps de jeu (sec),Buts,Assists\n";
+    // Le "sep=;" force Excel à ouvrir directement le fichier en plusieurs colonnes distinctes
+    let csv = "sep=;\nJoueur;Temps de jeu;Buts;Assists\n";
+    
     names.forEach(n => {
         const now = Math.floor(Date.now()/1000);
-        const t = data[n].total + (data[n].playing && globalRunning ? now - data[n].lastStart : 0);
-        csv += `${n},${t},${data[n].goals},${data[n].assists}\n`;
+        // Calcul du temps total en secondes
+        const totalSec = data[n].total + (data[n].playing && globalRunning ? now - data[n].lastStart : 0);
+        
+        // RÈGLE : Conversion des secondes en format MM:SS pour le tableur
+        const min = Math.floor(totalSec / 60);
+        const sec = totalSec % 60;
+        const tempsFormate = min + ":" + (sec < 10 ? "0" : "") + sec;
+        
+        // RÈGLE : Utilisation du point-virgule pour séparer proprement chaque colonne
+        csv += `${n};${tempsFormate};${data[n].goals};${data[n].assists}\n`;
     });
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    
+    // Ajout du format UTF-8 (avec BOM) pour que les accents comme dans "Aurélien" s'affichent correctement dans Excel
+    const blob = new Blob([new Uint8Array([0xEF, 0xBB, 0xBF]), csv], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement("a");
     link.href = URL.createObjectURL(blob);
     link.setAttribute("download", "stats_match.csv");
@@ -233,6 +245,7 @@ document.getElementById("exportBtn").onclick = function() {
     link.click();
     document.body.removeChild(link);
 };
+
 
 init();
 render();

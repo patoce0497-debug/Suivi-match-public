@@ -1,9 +1,14 @@
-const names = ["Aurélien","Aymeric","Djibril","Matteo","Giacomo","Jules","Theo 8","Julian","Loris","Louis","Lyam","Maxime","Robin","Thomas","Tiago","Yanis","Youssef","Zinedine"];
+// Liste de base fixe (GitHub)
+const initialNames = ["Aurélien","Aymeric","Djibril","Matteo","Giacomo","Jules","Theo 8","Julian","Loris","Louis","Lyam","Maxime","Robin","Thomas","Tiago","Yanis","Youssef","Zinedine"];
+// Tableau dynamique qui contiendra aussi les joueurs ajoutés sur le terrain
+let names = [...initialNames];
+
 let data = {}, globalRunning = false, globalStart = 0, globalTotal = 0, goalsScored = 0, conceded = 0;
 let timerInterval, activeReplacePlayer = null;
 
 function save() {
-    localStorage.setItem('verlaine_v_modal', JSON.stringify({ data, globalRunning, globalStart, globalTotal, goalsScored, conceded }));
+    // On sauvegarde la liste des noms modifiée ainsi que toutes les stats du match
+    localStorage.setItem('verlaine_v_modal', JSON.stringify({ names, data, globalRunning, globalStart, globalTotal, goalsScored, conceded }));
 }
 
 function init() {
@@ -11,6 +16,9 @@ function init() {
     if (saved) {
         try {
             const p = JSON.parse(saved);
+            // Si des noms personnalisés ont été enregistrés, on les récupère
+            if (p.names) names = p.names;
+            
             data = p.data || {}; 
             globalRunning = p.globalRunning || false; 
             globalStart = p.globalStart || 0;
@@ -24,10 +32,11 @@ function init() {
             }
         } catch(e) {
             data = {};
+            names = [...initialNames];
         }
     }
     
-    // Initialisation sécurisée des joueurs s'ils n'existent pas dans le stockage
+    // Initialisation sécurisée de tous les joueurs présents dans la liste actuelle
     names.forEach(n => {
         if (!data[n]) {
             data[n] = {playing:false, lastStart:0, total:0, goals:0, assists:0};
@@ -49,7 +58,7 @@ function render(){
     document.getElementById("scoreGoals").textContent = goalsScored;
     document.getElementById("conceded").textContent = conceded;
 
-    // RÈGLE 2 : Tri en temps réel du plus grand temps de jeu au plus petit
+    // Tri en temps réel du plus grand temps de jeu au plus petit
     const sortedNames = [...names].sort((a, b) => {
         const timeA = (data[a]?.total || 0) + (data[a]?.playing && globalRunning ? now - data[a].lastStart : 0);
         const timeB = (data[b]?.total || 0) + (data[b]?.playing && globalRunning ? now - data[b].lastStart : 0);
@@ -59,7 +68,6 @@ function render(){
     sortedNames.forEach(n => {
         const p = data[n];
         if (!p) return;
-        // RÈGLE 1 & 3 : Calcul du temps dynamique prenant en compte si le match est en cours
         const t = p.total + (p.playing && globalRunning ? now - p.lastStart : 0);
         const card = document.createElement("div");
         card.className = "player";
@@ -81,15 +89,36 @@ function render(){
                     <button class="smallbtn" onclick="addAssist('${n}',-1)">-</button>
                 </div></div>
             </div>
-        `; // AMÉLIORATION : Différence individuelle supprimée d'ici
+        `; 
         div.appendChild(card);
     });
 }
 
+// LOGIQUE D'AJOUT D'UN JOUEUR DEPUIS L'ECRAN
+document.getElementById("addPlayerBtn").onclick = function() {
+    const input = document.getElementById("newPlayerName");
+    const name = input.value.trim();
+    
+    if (name === "") return; // Ne rien faire si le champ est vide
+    
+    // Si le joueur existe déjà, on prévient l'utilisateur
+    if (names.includes(name)) {
+        alert("Ce joueur est déjà dans la liste !");
+        return;
+    }
+    
+    // Ajout du joueur dans la liste et création de sa fiche de statistiques
+    names.push(name);
+    data[name] = {playing:false, lastStart:0, total:0, goals:0, assists:0};
+    
+    input.value = ""; // On vide le champ de texte
+    save(); 
+    render();
+};
+
 function toggleP(n) {
     const now = Math.floor(Date.now()/1000);
     if (data[n].playing) { 
-        // Si le match tourne, on accumule le temps immédiatement
         if (globalRunning) {
             data[n].total += now - data[n].lastStart;
         }
@@ -106,20 +135,18 @@ function addGoal(n, v) {
     data[n].goals += v; goalsScored += v; save(); render(); 
 }
 
+// Correction orthographe
 function addAssist(n, v) { 
     if(v < 0 && data[n].assists <= 0) return;
     data[n].assists += v; save(); render(); 
 }
 
-// RÈGLE 1 & 2 : Boucle de rafraîchissement qui met à jour les chronos ET réorganise le classement en direct
 function startTimerLoop() {
     if(timerInterval) clearInterval(timerInterval);
     timerInterval = setInterval(() => {
         const now = Math.floor(Date.now()/1000);
         const totalSec = globalTotal + (globalRunning ? now - globalStart : 0);
         document.getElementById("globalTimer").textContent = "Temps : " + fmt(totalSec);
-        
-        // On relance le render à chaque seconde pour appliquer le tri automatique en direct pendant que le temps s'écoule
         render();
     }, 1000);
 }
@@ -127,7 +154,6 @@ function startTimerLoop() {
 document.getElementById("globalBtn").onclick = function() {
     const now = Math.floor(Date.now()/1000);
     if(!globalRunning) {
-        // AMÉLIORATION COMPOSITION : Si aucun joueur n'est actif sur le terrain au moment de démarrer
         const activePlayersCount = names.filter(n => data[n].playing).length;
         if (activePlayersCount === 0) {
             if (confirm("Aucun joueur n'est sur le terrain. Voulez-vous faire entrer automatiquement les 10 premiers joueurs ?")) {
@@ -141,7 +167,6 @@ document.getElementById("globalBtn").onclick = function() {
         globalRunning = true;
         this.textContent = "Arreter le match";
         
-        // RÈGLE 1 : Tous les joueurs cochés comme "playing" voient leur chrono démarrer synchronisé sur le bouton général
         names.forEach(n => { if(data[n].playing) data[n].lastStart = now; });
         startTimerLoop();
     } else {
@@ -150,12 +175,9 @@ document.getElementById("globalBtn").onclick = function() {
         this.textContent = "Demarrer le match";
         clearInterval(timerInterval);
         
-        // Quand le match s'arrête, on fige et enregistre le temps accumulé de ceux qui jouaient
         names.forEach(n => { 
             if(data[n].playing) { 
                 data[n].total += now - data[n].lastStart; 
-                // Optionnel : décommente la ligne suivante si tu veux qu'ils sortent tous automatiquement à la pause
-                // data[n].playing = false; 
             } 
         });
     }
@@ -187,16 +209,12 @@ function closeModal() { document.getElementById("replaceModal").style.display = 
 
 function executeReplace(inPlayer) {
     const now = Math.floor(Date.now()/1000);
-    
-    // Si le match est en cours, on calcule le temps exact du sortant immédiatement
     if (globalRunning) {
         data[activeReplacePlayer].total += now - data[activeReplacePlayer].lastStart;
         data[inPlayer].lastStart = now;
     }
-    
     data[activeReplacePlayer].playing = false;
     data[inPlayer].playing = true;
-    
     closeModal(); save(); render();
 }
 
@@ -216,6 +234,5 @@ document.getElementById("exportBtn").onclick = function() {
     document.body.removeChild(link);
 };
 
-// Lancement au démarrage de la page
 init();
 render();

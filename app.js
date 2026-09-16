@@ -213,39 +213,40 @@ function executeReplace(inPlayer) {
         data[activeReplacePlayer].total += now - data[activeReplacePlayer].lastStart;
         data[inPlayer].lastStart = now;
     }
-    data[activeReplacePlayer].playing = false;
+        data[activeReplacePlayer].playing = false;
     data[inPlayer].playing = true;
     closeModal(); save(); render();
 }
 
+// NOUVEL EXPORT EXCEL PREMIUM (EN COLONNES DIRECTES)
 document.getElementById("exportBtn").onclick = function() {
-    // Le "sep=;" force Excel à ouvrir directement le fichier en plusieurs colonnes distinctes
-    let csv = "sep=;\nJoueur;Temps de jeu;Buts;Assists\n";
+    // 1. Préparation des lignes du tableau Excel
+    const rows = [
+        ["Joueur", "Temps de jeu", "Buts", "Assists"] // Entêtes des colonnes
+    ];
     
     names.forEach(n => {
         const now = Math.floor(Date.now()/1000);
         // Calcul du temps total en secondes
         const totalSec = data[n].total + (data[n].playing && globalRunning ? now - data[n].lastStart : 0);
         
-        // RÈGLE : Conversion des secondes en format MM:SS pour le tableur
+        // Conversion des secondes en format lisible MM:SS
         const min = Math.floor(totalSec / 60);
         const sec = totalSec % 60;
         const tempsFormate = min + ":" + (sec < 10 ? "0" : "") + sec;
         
-        // RÈGLE : Utilisation du point-virgule pour séparer proprement chaque colonne
-        csv += `${n};${tempsFormate};${data[n].goals};${data[n].assists}\n`;
+        // Ajout du joueur dans le tableau
+        rows.push([n, tempsFormate, data[n].goals, data[n].assists]);
     });
     
-    // Ajout du format UTF-8 (avec BOM) pour que les accents comme dans "Aurélien" s'affichent correctement dans Excel
-    const blob = new Blob([new Uint8Array([0xEF, 0xBB, 0xBF]), csv], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(blob);
-    link.setAttribute("download", "stats_match.csv");
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    // 2. Génération du vrai fichier Excel (.xlsx)
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    XLSX.utils.book_append_sheet(wb, ws, "Stats Match");
+    
+    // 3. Téléchargement automatique
+    XLSX.writeFile(wb, "stats_match_rcs.xlsx");
 };
-
 
 init();
 render();

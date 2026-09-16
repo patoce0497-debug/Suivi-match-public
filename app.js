@@ -213,40 +213,39 @@ function executeReplace(inPlayer) {
         data[activeReplacePlayer].total += now - data[activeReplacePlayer].lastStart;
         data[inPlayer].lastStart = now;
     }
-        data[activeReplacePlayer].playing = false;
+           data[activeReplacePlayer].playing = false;
     data[inPlayer].playing = true;
     closeModal(); save(); render();
 }
 
-// NOUVEL EXPORT EXCEL PREMIUM (EN COLONNES DIRECTES)
+// EXPORT COMPATIBLE EXCEL (COLONNES NETTES ET TEMPS MM:SS)
 document.getElementById("exportBtn").onclick = function() {
-    // 1. Préparation des lignes du tableau Excel
-    const rows = [
-        ["Joueur", "Temps de jeu", "Buts", "Assists"] // Entêtes des colonnes
-    ];
+    // Le "sep=;" en première ligne force légalement Excel France à ouvrir en colonnes directes
+    let csv = "sep=;\nJoueur;Temps de jeu;Buts;Assists\n";
     
     names.forEach(n => {
         const now = Math.floor(Date.now()/1000);
-        // Calcul du temps total en secondes
         const totalSec = data[n].total + (data[n].playing && globalRunning ? now - data[n].lastStart : 0);
         
-        // Conversion des secondes en format lisible MM:SS
+        // CONVERSION : Secondes vers format Minute:Seconde
         const min = Math.floor(totalSec / 60);
         const sec = totalSec % 60;
         const tempsFormate = min + ":" + (sec < 10 ? "0" : "") + sec;
         
-        // Ajout du joueur dans le tableau
-        rows.push([n, tempsFormate, data[n].goals, data[n].assists]);
+        // ÉCRITURE : Séparation stricte par points-virgules pour Excel
+        csv += `${n};${tempsFormate};${data[n].goals};${data[n].assists}\n`;
     });
     
-    // 2. Génération du vrai fichier Excel (.xlsx)
-    const wb = XLSX.utils.book_new();
-    const ws = XLSX.utils.aoa_to_sheet(rows);
-    XLSX.utils.book_append_sheet(wb, ws, "Stats Match");
-    
-    // 3. Téléchargement automatique
-    XLSX.writeFile(wb, "stats_match_rcs.xlsx");
+    // Ajout d'une clé UTF-8 (BOM) pour qu'Excel lise correctement les accents (Aurélien, etc.)
+    const blob = new Blob([new Uint8Array([0xEF, 0xBB, 0xBF]), csv], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.setAttribute("download", "stats_match_rcs.csv");
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
 };
 
 init();
 render();
+
